@@ -31,7 +31,28 @@ terraform plan
 terraform apply
 ```
 
-Then visit `http://localhost:8080` (or whatever `host_port` is set to).
+## Viewing the page
+
+Once `apply` finishes, the container is up and serving immediately — no
+extra step needed. Confirm it's running:
+
+```bash
+docker ps --filter name=terraform-pilot-nginx
+```
+
+Then open `http://localhost:8080` (or whatever `host_port` is set to) in a
+browser. If you're running Terraform inside WSL, Docker Desktop shares its
+daemon and forwards ports to Windows too, so `localhost:8080` works from a
+browser on either side.
+
+To check it from the command line instead of a browser:
+
+```bash
+curl http://localhost:8080
+```
+
+You should see the default "Welcome to nginx!" page. The container stays up
+until you run `terraform destroy` — it does not stop on its own.
 
 Tear it down with:
 
