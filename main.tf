@@ -7,8 +7,14 @@ resource "docker_image" "nginx" {
   keep_locally = true
 }
 
+locals {
+  replica_ports_set = toset([for p in var.replica_ports : tostring(p)])
+}
+
 resource "docker_container" "web" {
-  name  = var.container_name
+  for_each = local.replica_ports_set
+
+  name  = "${var.container_name}-${each.value}"
   image = docker_image.nginx.image_id
 
   networks_advanced {
@@ -17,7 +23,7 @@ resource "docker_container" "web" {
 
   ports {
     internal = 80
-    external = var.host_port
+    external = tonumber(each.value)
   }
 
   volumes {

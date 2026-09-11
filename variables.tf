@@ -16,10 +16,10 @@ variable "network_name" {
   default     = "terraform-pilot-net"
 }
 
-variable "host_port" {
-  description = "Host port to publish the container's port 80 on"
-  type        = number
-  default     = 8080
+variable "replica_ports" {
+  description = "Host ports to publish; one nginx replica container is created per port"
+  type        = list(number)
+  default     = [8080, 8082]
 }
 
 variable "site_content_dir" {
