@@ -10,6 +10,12 @@ variable "container_name" {
   default     = "terraform-pilot-nginx"
 }
 
+variable "network_name" {
+  description = "Name for the Docker network"
+  type        = string
+  default     = "terraform-pilot-net"
+}
+
 variable "host_port" {
   description = "Host port to publish the container's port 80 on"
   type        = number

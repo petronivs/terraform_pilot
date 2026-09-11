@@ -1,5 +1,5 @@
 resource "docker_network" "app_net" {
-  name = "terraform-pilot-net"
+  name = var.network_name
 }
 
 resource "docker_image" "nginx" {

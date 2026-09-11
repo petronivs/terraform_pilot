@@ -19,9 +19,10 @@ Running `terraform apply` creates:
 | File | Purpose |
 |---|---|
 | `versions.tf` | Required Terraform version and provider declaration |
-| `variables.tf` | Inputs: `image_name`, `container_name`, `host_port` |
+| `variables.tf` | Inputs: `image_name`, `container_name`, `network_name`, `host_port` |
 | `main.tf` | The network, image, and container resources |
 | `outputs.tf` | Container name and the URL to hit it at |
+| `tests/nginx.tftest.hcl` | Automated tests (see [Testing](#testing)) |
 
 ## Usage
 
@@ -59,6 +60,28 @@ Tear it down with:
 ```bash
 terraform destroy
 ```
+
+## Testing
+
+This project uses Terraform's native [`terraform test`](https://developer.hashicorp.com/terraform/language/tests)
+framework (built in since Terraform 1.6, no extra tooling required):
+
+```bash
+terraform test
+```
+
+`tests/nginx.tftest.hcl` runs two checks:
+
+- a `plan`-only run that verifies the network, image, and container are
+  configured with the expected names
+- an `apply` run that actually creates a container (using overridden
+  `container_name`/`network_name`/`host_port` so it doesn't collide with a
+  container you may already have running manually) and asserts its ports and
+  outputs are correct
+
+Resources created during the `apply` test are automatically destroyed by
+Terraform when the test finishes — this does not affect any container you
+started yourself with a regular `terraform apply`.
 
 ## Requirements
 
