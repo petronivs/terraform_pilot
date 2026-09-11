@@ -12,16 +12,18 @@ Running `terraform apply` creates:
 - `docker_network.app_net` — a dedicated bridge network (`terraform-pilot-net`)
 - `docker_image.nginx` — pulls the `nginx:alpine` image
 - `docker_container.web` — runs an nginx container on that network, publishing
-  container port 80 to a host port (default `8080`)
+  container port 80 to a host port (default `8080`), with the `www/`
+  directory bind-mounted read-only over nginx's html root
 
 ## Files
 
 | File | Purpose |
 |---|---|
 | `versions.tf` | Required Terraform version and provider declaration |
-| `variables.tf` | Inputs: `image_name`, `container_name`, `network_name`, `host_port` |
+| `variables.tf` | Inputs: `image_name`, `container_name`, `network_name`, `host_port`, `site_content_dir` |
 | `main.tf` | The network, image, and container resources |
 | `outputs.tf` | Container name and the URL to hit it at |
+| `www/index.html` | Static page served by nginx (edit and refresh, no `apply` needed) |
 | `tests/nginx.tftest.hcl` | Automated tests (see [Testing](#testing)) |
 
 ## Usage
@@ -52,8 +54,17 @@ To check it from the command line instead of a browser:
 curl http://localhost:8080
 ```
 
-You should see the default "Welcome to nginx!" page. The container stays up
-until you run `terraform destroy` — it does not stop on its own.
+You should see the custom page from `www/index.html`, not nginx's default
+welcome page — it's bind-mounted over nginx's html root. Edit that file and
+refresh the browser to see changes immediately, with no `terraform apply`
+needed (only structural changes like the mount path itself require re-apply).
+The container stays up until you run `terraform destroy` — it does not stop
+on its own.
+
+Note: changing `site_content_dir` (or removing/adding the volume block
+itself) forces the container to be recreated, since Docker mounts can't be
+changed on a running container — `terraform apply` will show a
+destroy-then-create plan for `docker_container.web` when that happens.
 
 Tear it down with:
 
@@ -76,8 +87,8 @@ terraform test
   configured with the expected names
 - an `apply` run that actually creates a container (using overridden
   `container_name`/`network_name`/`host_port` so it doesn't collide with a
-  container you may already have running manually) and asserts its ports and
-  outputs are correct
+  container you may already have running manually) and asserts its ports,
+  volume mount, and outputs are correct
 
 Resources created during the `apply` test are automatically destroyed by
 Terraform when the test finishes — this does not affect any container you

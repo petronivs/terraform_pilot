@@ -52,4 +52,19 @@ run "apply_creates_working_container" {
     condition     = output.container_name == "terraform-pilot-nginx-test"
     error_message = "container_name output did not match expected test name"
   }
+
+  assert {
+    condition     = length(docker_container.web.volumes) == 1
+    error_message = "Container should have exactly one mounted volume for custom site content"
+  }
+
+  assert {
+    condition     = one(docker_container.web.volumes).container_path == "/usr/share/nginx/html"
+    error_message = "Volume should be mounted at nginx's html directory"
+  }
+
+  assert {
+    condition     = one(docker_container.web.volumes).read_only == true
+    error_message = "Site content volume should be mounted read-only"
+  }
 }

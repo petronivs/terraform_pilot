@@ -21,3 +21,9 @@ variable "host_port" {
   type        = number
   default     = 8080
 }
+
+variable "site_content_dir" {
+  description = "Directory (relative to this module) bind-mounted into the container as nginx's html root"
+  type        = string
+  default     = "www"
+}

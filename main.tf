@@ -19,4 +19,10 @@ resource "docker_container" "web" {
     internal = 80
     external = var.host_port
   }
+
+  volumes {
+    host_path      = abspath("${path.module}/${var.site_content_dir}")
+    container_path = "/usr/share/nginx/html"
+    read_only      = true
+  }
 }
