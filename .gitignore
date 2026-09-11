@@ -26,3 +26,6 @@ override.tf.json
 
 # Include lock file (safe, ensures reproducible provider versions)
 !.terraform.lock.hcl
+
+# Claude Code local project files (machine-specific, not for sharing)
+.claude/
