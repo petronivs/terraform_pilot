@@ -35,6 +35,35 @@ terraform plan
 terraform apply
 ```
 
+## Changing the number of replicas or ports
+
+The number of nginx containers, and which host ports they use, is controlled
+entirely by the `replica_ports` variable (default `[8080, 8082]`) — one
+container is created per port in the list. To change it, either edit the
+default in `variables.tf`, or override it without editing code:
+
+```bash
+# Three replicas instead of two
+terraform apply -var='replica_ports=[8080, 8081, 8082]'
+
+# Just one replica
+terraform apply -var='replica_ports=[8080]'
+```
+
+Or set it in a `terraform.tfvars` file (gitignored — see [Notes](#notes)
+below) so you don't have to pass `-var` every time:
+
+```hcl
+# terraform.tfvars
+replica_ports = [8080, 8081, 8082]
+```
+
+Each port must be free on your host and unique in the list — Terraform will
+error at apply time if a port is already bound by something else. Adding a
+port creates a new container; removing one destroys the corresponding
+container; changing a port value destroys and recreates that one container
+(the others are untouched, since each is a separate `for_each` instance).
+
 ## Viewing the page
 
 Once `apply` finishes, every replica container is up and serving
