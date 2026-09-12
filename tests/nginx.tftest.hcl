@@ -1,13 +1,19 @@
-# Overrides used by the apply-based test below, to avoid colliding with a
-# manually-run `terraform apply` deployment (default container names / ports).
+# Global overrides so tests never collide with a manually-run `terraform
+# apply` deployment on the default ports/names.
 variables {
   container_name = "terraform-pilot-nginx-test"
   network_name    = "terraform-pilot-net-test"
   replica_ports   = [8090, 8091]
 }
 
-run "plan_has_expected_resources" {
+# --- Tests against the nginx_site module directly ---
+
+run "module_plan_has_expected_resources" {
   command = plan
+
+  module {
+    source = "./modules/nginx_site"
+  }
 
   assert {
     condition     = docker_network.app_net.name == "terraform-pilot-net-test"
@@ -35,8 +41,12 @@ run "plan_has_expected_resources" {
   }
 }
 
-run "apply_creates_working_replicas" {
+run "module_apply_creates_working_replicas" {
   command = apply
+
+  module {
+    source = "./modules/nginx_site"
+  }
 
   assert {
     condition     = length(docker_container.web) == 2
@@ -75,16 +85,41 @@ run "apply_creates_working_replicas" {
 
   assert {
     condition     = contains(output.urls, "http://localhost:8090")
-    error_message = "urls output should include a URL for each replica port"
+    error_message = "Module's urls output should include a URL for each replica port"
   }
 
   assert {
     condition     = contains(output.urls, "http://localhost:8091")
-    error_message = "urls output should include a URL for each replica port"
+    error_message = "Module's urls output should include a URL for each replica port"
   }
 
   assert {
     condition     = contains(output.container_names, "terraform-pilot-nginx-test-8090")
-    error_message = "container_names output should include every replica's name"
+    error_message = "Module's container_names output should include every replica's name"
+  }
+}
+
+# --- Test that the root module correctly wires the module's outputs through ---
+
+run "root_module_exposes_module_outputs" {
+  command = apply
+
+  variables {
+    replica_ports = [8092, 8093]
+  }
+
+  assert {
+    condition     = contains(output.urls, "http://localhost:8092")
+    error_message = "Root urls output should pass through the module's urls"
+  }
+
+  assert {
+    condition     = contains(output.urls, "http://localhost:8093")
+    error_message = "Root urls output should pass through the module's urls"
+  }
+
+  assert {
+    condition     = contains(output.container_names, "terraform-pilot-nginx-test-8092")
+    error_message = "Root container_names output should pass through the module's container_names"
   }
 }
