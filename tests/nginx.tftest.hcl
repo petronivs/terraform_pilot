@@ -106,6 +106,7 @@ run "root_module_exposes_module_outputs" {
 
   variables {
     replica_ports = [8092, 8093]
+    network_name   = "terraform-pilot-net-test-root"
   }
 
   assert {

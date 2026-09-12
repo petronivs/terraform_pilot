@@ -7,23 +7,31 @@ or credentials required.
 
 ## What it does
 
-Running `terraform apply` creates:
+The root module just calls a reusable child module, `modules/nginx_site`,
+which creates:
 
 - `docker_network.app_net` — a dedicated bridge network (`terraform-pilot-net`)
 - `docker_image.nginx` — pulls the `nginx:alpine` image
 - `docker_container.web` — one nginx container **per entry in `replica_ports`**
   (`for_each` over that list, default `[8080, 8082]`), each named
   `<container_name>-<port>`, publishing container port 80 to its host port,
-  with the `www/` directory bind-mounted read-only over nginx's html root
+  with a directory bind-mounted read-only over nginx's html root
+
+Structuring it as a root module calling a child module (instead of putting
+resources directly at the top level) mirrors how real-world cloud Terraform
+repos are usually organized — a root module per environment, calling shared
+child modules for each piece of infrastructure. Swapping the module's
+internals for `azurerm_*` resources later wouldn't change how it's called.
 
 ## Files
 
 | File | Purpose |
 |---|---|
 | `versions.tf` | Required Terraform version and provider declaration |
-| `variables.tf` | Inputs: `image_name`, `container_name`, `network_name`, `replica_ports`, `site_content_dir` |
-| `main.tf` | The network, image, and (via `for_each`) one container per replica port |
-| `outputs.tf` | `container_names` and `urls` lists, one entry per replica |
+| `variables.tf` | Root inputs: `image_name`, `container_name`, `network_name`, `replica_ports`, `site_content_dir` |
+| `main.tf` | Calls `module.web` (`./modules/nginx_site`), passing through the root variables |
+| `outputs.tf` | `container_names` and `urls`, passed through from `module.web` |
+| `modules/nginx_site/` | The actual network/image/container resources — see its own variables/outputs |
 | `www/index.html` | Static page served by nginx (edit and refresh, no `apply` needed) |
 | `tests/nginx.tftest.hcl` | Automated tests (see [Testing](#testing)) |
 
@@ -105,6 +113,35 @@ Tear it down with:
 terraform destroy
 ```
 
+## A lesson from this refactor: moving resources into a module
+
+When the resources here were moved from the root `main.tf` directly into
+`modules/nginx_site`, their state addresses changed (e.g.
+`docker_network.app_net` became `module.web.docker_network.app_net`).
+Terraform doesn't know those two addresses refer to the "same" infrastructure
+unless you tell it, so `terraform apply` planned a full destroy-then-create
+instead of an in-place rename — which is exactly what happened here (briefly
+took the containers down before recreating them).
+
+The correct way to do this kind of refactor without downtime is a `moved`
+block, e.g. in `main.tf`:
+
+```hcl
+moved {
+  from = docker_network.app_net
+  to   = module.web.docker_network.app_net
+}
+```
+
+One `moved` block per resource (covering all `for_each`/`count` instances at
+once, no index needed) tells Terraform to treat the old and new addresses as
+the same object and update state in place — no destroy, no recreate. This
+matters a lot more once real cloud resources are involved: destroying and
+recreating an `azurerm_storage_account` or database isn't just a brief
+restart, it can mean real data loss or a non-trivial outage. Worth reaching
+for `moved` blocks by default any time a refactor changes resource addresses,
+not just when it's convenient.
+
 ## Testing
 
 This project uses Terraform's native [`terraform test`](https://developer.hashicorp.com/terraform/language/tests)
@@ -114,17 +151,23 @@ framework (built in since Terraform 1.6, no extra tooling required):
 terraform test
 ```
 
-`tests/nginx.tftest.hcl` runs two checks:
+`tests/nginx.tftest.hcl` runs three checks, using overridden
+`container_name`/`network_name`/`replica_ports` throughout so nothing
+collides with containers you may already have running manually:
 
-- a `plan`-only run that verifies the network, image, and each planned
-  replica container are configured with the expected names
-- an `apply` run that actually creates two replica containers (using
-  overridden `container_name`/`network_name`/`replica_ports` so they don't
-  collide with containers you may already have running manually) and asserts
-  each one's ports, volume mount, and the `container_names`/`urls` outputs
-  are correct
+- a `plan`-only run against `modules/nginx_site` directly (via a per-run
+  `module { source = "./modules/nginx_site" }` block) that verifies the
+  network, image, and each planned replica container are configured with the
+  expected names
+- an `apply` run, also against the module directly, that actually creates two
+  replica containers and asserts each one's ports, volume mount, and the
+  module's `container_names`/`urls` outputs are correct
+- an `apply` run against the **root** configuration (no module override) that
+  checks the root's `container_names`/`urls` outputs correctly pass through
+  whatever `module.web` produces — i.e., that the root module is wiring the
+  child module correctly, not just that the child module works in isolation
 
-Resources created during the `apply` test are automatically destroyed by
+Resources created during `apply` runs are automatically destroyed by
 Terraform when the test finishes — this does not affect any container you
 started yourself with a regular `terraform apply`.
 
